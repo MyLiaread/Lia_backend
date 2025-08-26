@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard Auteur - Liaread</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {font-family: Arial, sans-serif; background:#f9f9f9; margin:0; padding:0;}
+    header {background:#4b0082; color:white; padding:15px; display:flex; justify-content:space-between; align-items:center;}
+    header h1 {font-size:22px; font-family: "Brush Script MT", cursive; margin:0;}
+    header .btn {background:white; color:#4b0082; padding:8px 12px; border-radius:6px; text-decoration:none; font-weight:bold; font-size:14px; margin-left:5px;}
+    main {padding:15px;}
+    h2 {margin-top:25px; color:#333; font-size:18px;}
+    #welcome {font-weight:bold; margin:10px 0; color:#444; font-family: "Brush Script MT", cursive;}
+    form {background:white; padding:15px; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-top:20px;}
+    form label {display:block; font-size:14px; margin-top:10px; color:#333;}
+    form input, form textarea, form select {width:100%; padding:8px; margin-top:5px; border:1px solid #ccc; border-radius:6px;}
+    #submitBtn {margin-top:15px; width:100%; background:#4b0082; color:white; padding:10px; border:none; border-radius:6px; font-size:16px; font-weight:bold; cursor:pointer;}
+    #submitBtn:hover {background:#360061;}
+    footer {background:#4b0082; color:white; padding:15px; text-align:center; margin-top:30px; font-size:14px;}
+    footer a {color:#fff; text-decoration:none; margin:0 5px;}
+    #popupMessage {display:none; position:fixed; top:20px; right:20px; background:#4b0082; color:white; padding:15px 20px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.2); z-index:1000; font-weight:bold;}
+    #overlay {display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.8); z-index:2000; text-align:center;}
+    #overlay .spinner {margin-top:25%; border: 6px solid #ccc; border-top: 6px solid #4b0082; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; display:inline-block;}
+    #overlay p {font-family:"Brush Script MT", cursive; font-size:18px; color:#4b0082; margin-top:10px;}
+    @keyframes spin {0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Lia</h1>
+    <div>
+      <a href="index.html" class="btn">🏠 Accueil</a>
+      <button id="logout" class="btn">🚪 Déconnexion</button>
+    </div>
+  </header>
+
+  <main>
+    <p id="welcome">Bienvenue cher auteur ✨</p>
+
+    <h2>Soumettre un Livre</h2>
+    <form id="bookForm">
+      <label>Titre :</label>
+      <input type="text" id="titre" required>
+
+      <label>Auteur / Pseudo :</label>
+      <input type="text" id="auteur" required>
+
+      <label>Résumé du livre :</label>
+      <textarea id="resume" rows="4" required></textarea>
+
+      <label>Prix (F CFA) :</label>
+      <input type="number" id="prix" required>
+
+      <label>Catégorie :</label>
+      <select id="categorie" required>
+        <option value="">--Choisir une catégorie--</option>
+        <option value="roman">Roman</option>
+        <option value="romantique">Romantique</option>
+        <option value="milliardaire">Milliardaire</option>
+        <option value="nouvelle">Nouvelle</option>
+        <option value="conte">Conte</option>
+        <option value="vampire-loup-garou">Vampire / Loup-garou</option>
+        <option value="bd">BD</option>
+        <option value="aventure">Aventure</option>
+        <option value="bien-etre">Bien-être</option>
+        <option value="fantastique">Fantastique</option>
+      </select>
+
+      <label>Couverture :</label>
+      <input type="file" id="couverture" accept="image/*" required>
+
+      <label>Fichier du livre :</label>
+      <input type="file" id="ebook" accept=".pdf,.epub" required>
+
+      <label>Contact (email ou WhatsApp) :</label>
+      <input type="text" id="contact" required>
+
+      <button type="submit" id="submitBtn">📤 Publier</button>
+    </form>
+  </main>
+
+  <div id="overlay"><div class="spinner"></div><p>En cours...</p></div>
+  <div id="popupMessage"></div>
+
+  <footer>
+    📞 Contact :
+    <a href="mailto:myliaread@gmail.com">myliaread@gmail.com</a> |
+    <a href="https://wa.me/2290147244055" target="_blank">WhatsApp</a>
+  </footer>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDpaf3wdXkypPKH443SIZcJRFiz02s-t30",
+      authDomain: "liaread.firebaseapp.com",
+      projectId: "liaread",
+      storageBucket: "liaread.firebasestorage.app",
+      messagingSenderId: "951394019167",
+      appId: "1:951394019167:web:86825d5ebff4d77807f8ea",
+      measurementId: "G-63JN91LVV6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    const form = document.getElementById("bookForm");
+    const overlay = document.getElementById("overlay");
+    const popup = document.getElementById("popupMessage");
+
+    function showPopup(msg, success=true) {
+      popup.textContent = msg;
+      popup.style.background = success ? "#28a745" : "#dc3545";
+      popup.style.display = "block";
+      setTimeout(()=>popup.style.display="none",4000);
+    }
+
+    form.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      overlay.style.display = "block";
+
+      try {
+        const titre = document.getElementById("titre").value.trim();
+        const auteur = document.getElementById("auteur").value.trim();
+        const resume = document.getElementById("resume").value.trim();
+        const prix = document.getElementById("prix").value.trim();
+        const categorie = document.getElementById("categorie").value;
+        const contact = document.getElementById("contact").value.trim();
+
+        const couvertureFile = document.getElementById("couverture").files[0];
+        const ebookFile = document.getElementById("ebook").files[0];
+
+        if(!couvertureFile || !ebookFile){
+          showPopup("❌ Sélectionne une couverture et un fichier ebook.", false);
+          overlay.style.display = "none";
+          return;
+        }
+
+        // Upload couverture
+        const couvertureRef = ref(storage, "books/couvertures/" + Date.now() + "_" + couvertureFile.name);
+        await uploadBytes(couvertureRef, couvertureFile);
+        const couvertureURL = await getDownloadURL(couvertureRef);
+
+        // Upload ebook
+        const ebookRef = ref(storage, "books/ebooks/" + Date.now() + "_" + ebookFile.name);
+        await uploadBytes(ebookRef, ebookFile);
+        const ebookURL = await getDownloadURL(ebookRef);
+
+        // Sauvegarde Firestore
+        await addDoc(collection(db, "books"), {
+          titre, auteur, resume, prix, categorie, contact,
+          couvertureURL, ebookURL,
+          createdAt: serverTimestamp()
+        });
+
+        showPopup("✅ Livre soumis avec succès !");
+        form.reset();
+      } catch(err) {
+        console.error(err);
+        showPopup("❌ Erreur : " + err.message, false);
+      }
+
+      overlay.style.display = "none";
+    });
+
+    document.getElementById("logout").addEventListener("click", ()=>location.reload());
+  </script>
+</body>
+</html>
